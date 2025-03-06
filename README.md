@@ -1,88 +1,65 @@
 # OpenRouter Proxy Server
 
-A proxy server for OpenRouter that handles API key rotation and rate limiting. Designed to work seamlessly with tools like Aider while using free models.
+![OpenRouter Proxy Server](image.png)
 
-## Features
+> A smart proxy server for OpenRouter API with automatic key rotation and streaming support
 
-- Support for both streaming and non-streaming responses
-- Smart API key management with sticking to successful keys for better caching
-- Automatic key rotation only on rate limits
-- JSON-based key storage (no database required)
-- Comprehensive logging system with rotation
-- Easy integration with existing OpenAI SDK clients
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D16-brightgreen)](https://nodejs.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue)]()
 
-## Prerequisites
+## ✨ Features
 
-- Node.js (v16 or higher)
-- One or more OpenRouter API keys
+| **Key Management** 🔑         | **Streaming** 🌊           | **Observability** 📊         |
+|-------------------------------|---------------------------|-----------------------------|
+| Smart API key rotation         | Full streaming support    | Comprehensive logging       |
+| Sticky session optimization    | Automatic retry logic     | Daily log rotation          |
+| JSON-based storage             | Connection management     | Error tracking              |
+| Rate limit handling            | Chunk processing          | Key status monitoring       |
 
-## Setup
+## 📦 Getting Started
 
-1. Install dependencies:
+### Prerequisites
+- Node.js 16+
+- OpenRouter API key(s)
+
 ```bash
+git clone https://github.com/yourrepo/openrouter-proxy.git
+cd openrouter-proxy
 npm install
 ```
 
-2. Configure environment variables in `.env`:
-```env
-PORT=3000  # Optional, defaults to 3000
-```
+## 🛠 Configuration
 
-3. Add your API key using the interactive script:
+1. **Add API keys** using the interactive script:
 ```bash
 node add-key.js
 ```
 
-4. Start the proxy server:
+2. **Configure environment** (`.env`):
+```env
+PORT=3000  # Default port
+LOG_RETENTION_DAYS=14  # Keep logs for 14 days
+```
+
+3. **Start the server**:
 ```bash
 node server.js
 ```
 
-## Managing API Keys
+## 🚀 Usage Examples
 
-### Using the Interactive Script
-
-Run the interactive script to add a new API key:
-```bash
-node add-key.js
-```
-This will prompt you to enter your API key and safely store it in `data/keys.json`.
-
-### Using the API Endpoint
-
-Alternatively, use the admin endpoint to add new API keys:
-```bash
-curl -X POST http://localhost:3000/admin/keys \
-  -H "Content-Type: application/json" \
-  -d '{"key": "your-openrouter-api-key"}'
-```
-
-## Using with Clients
-
-The proxy supports both streaming and non-streaming responses. Configure your OpenAI SDK clients to use the proxy:
-
-### Non-Streaming Example
+### JavaScript Client
 ```javascript
 const openai = new OpenAI({
   baseURL: 'http://localhost:3000/v1',
-  apiKey: 'dummy-key',  // The actual key is managed by proxy
+  apiKey: 'dummy-key' // Actual key managed by proxy
 });
 
-// Non-streaming request
-const completion = await openai.chat.completions.create({
-  model: 'deepseek/deepseek-chat:free',
-  messages: [{ role: 'user', content: 'Hello' }],
-  stream: false,  // Disable streaming
-});
-```
-
-### Streaming Example
-```javascript
-// Streaming request
+// Streaming response
 const stream = await openai.chat.completions.create({
   model: 'deepseek/deepseek-chat:free',
   messages: [{ role: 'user', content: 'Hello' }],
-  stream: true,  // Enable streaming
+  stream: true
 });
 
 for await (const chunk of stream) {
@@ -90,56 +67,161 @@ for await (const chunk of stream) {
 }
 ```
 
-See `client-example.js` for complete examples of both streaming and non-streaming usage.
+### cURL Example
+```bash
+curl -X POST http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer dummy-key" \
+  -d '{
+    "model": "deepseek/deepseek-chat:free",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
 
-### When to Use Streaming vs Non-Streaming
+## 🔄 Key Rotation Strategy
 
-- **Use Streaming When:**
-  - You want to display responses in real-time
-  - The application can handle partial responses
-  - Network reliability is good
+```mermaid
+graph TD
+    A[New Request] --> B{Current Key<br>Available?}
+    B -->|Yes| C{Key in<br>Cooldown?}
+    B -->|No| D[Get Oldest<br>Available Key]
+    
+    C -->|No| E[Use Current Key]
+    C -->|Yes| D
+    
+    E --> F{Request<br>Success?}
+    F -->|Yes| G[Update Last Used]
+    F -->|No| H{Rate Limit<br>Error?}
+    
+    H -->|Yes| I[Set Cooldown<br>Period]
+    H -->|No| J[Increment<br>Failure Count]
+    
+    J --> K{Failures >= 5?}
+    K -->|Yes| L[Deactivate Key]
+    K -->|No| M[Save State]
+    
+    D --> N{Valid Keys<br>Found?}
+    N -->|Yes| E
+    N -->|No| O[Return Error]
+    
+    I --> D
+    L --> D
+    M --> D[Try Next Key]
+```
 
-- **Use Non-Streaming When:**
-  - You need better caching
-  - Network conditions are unreliable
-  - You're building automation tools (like Aider)
-  - You need to process the complete response as a whole
+The key rotation system implements:
 
-## How it Works
+- **Sticky Sessions**: Uses same key for consecutive requests when possible
+- **Smart Cooldown**: Rate-limited keys enter cooldown based on rate limit headers
+- **Failure Tracking**: Keys are deactivated after 5 consecutive failures
+- **Age-based Selection**: Rotates to least recently used available key
+- **Automatic Recovery**: Keys automatically reactivate after cooldown period
+- **Key Reactivation**: Deactivated keys can be re-added through admin API
 
-### Key Management Strategy
-1. The proxy uses the same API key for consecutive requests to maximize caching benefits
-2. Keys are only rotated when:
-   - A rate limit is hit (429 response)
-   - The key has too many consecutive failures
-3. When a key hits rate limits, it's put in cooldown based on the rate limit reset time
-4. Keys in cooldown are automatically reactivated after their cooldown period
+## 📚 Documentation
 
-### Streaming Support
-1. The proxy maintains persistent connections for streaming responses
-2. Each stream chunk is properly logged and monitored
-3. Stream errors are gracefully handled with proper cleanup
-4. Automatic retry with key rotation on rate limits
+### API Reference
 
-### Logging System
-1. Requests log: All incoming requests and responses (including stream chunks)
-2. Error log: Detailed error tracking with stack traces
-3. Key management log: Tracks key rotations, rate limits, and status changes
-4. All logs are automatically rotated daily with retention policies
+#### Chat Completions
+`POST /v1/chat/completions`
+- OpenAI-compatible chat completions endpoint
+- Supports both streaming and non-streaming responses
+- Auto-retries on rate limits (max 3 attempts)
+- Headers:
+  - `Content-Type: application/json`
+  - `Authorization: Bearer dummy-key` (actual key managed by proxy)
 
-## Error Handling
+#### Models List
+`GET /v1/models`
+- Retrieves available models from OpenRouter
+- Auto-retries on rate limits (max 3 attempts)
+- Headers:
+  - `Authorization: Bearer dummy-key`
 
-- Rate limits: Automatically handles by rotating to next available key
-- Stream disconnections: Graceful error handling with client notification
-- API key failures: Keys with repeated failures are deactivated
-- All errors are logged with full context for debugging
-- Automatic retry mechanism for recoverable errors
+#### Admin API
+`POST /admin/keys`
+- Adds new API keys to the rotation pool
+- Body: `{ "key": "your-openrouter-api-key" }`
+- Protected endpoint (consider adding authentication)
 
-## Log Files
+### Troubleshooting
 
-Logs are stored in the `logs` directory:
-- `requests-%DATE%.log` - API request/response logs (including stream chunks)
-- `errors-%DATE%.log` - Error logs with stack traces
-- `keys-%DATE%.log` - Key management events
+#### Common Issues
 
-Log files are automatically rotated daily and kept for 14 days.
+1. **Rate Limits**
+   - Symptom: 429 status code
+   - Solution: System automatically rotates keys and retries
+   - Prevention: Add more API keys or increase request intervals
+
+2. **Streaming Disconnections**
+   - Symptom: Stream ends unexpectedly
+   - Solution: 
+     - Check network stability
+     - Use non-streaming mode for unreliable connections
+     - Implement client-side retry logic
+
+3. **No Available Keys**
+   - Symptom: "No available API keys" error
+   - Solution:
+     - Add new keys via admin API
+     - Wait for cooldown period to end
+     - Check key status in logs
+
+4. **High Latency**
+   - Symptom: Slow response times
+   - Solution:
+     - Add more API keys to rotation pool
+     - Monitor network conditions
+     - Consider server location relative to API
+
+#### Logs Location
+- `logs/requests-%DATE%.log`: Request/response details
+- `logs/errors-%DATE%.log`: Error stack traces
+- `logs/keys-%DATE%.log`: Key rotation events
+
+### Architecture
+
+#### Component Overview
+```mermaid
+graph TD
+    A[Client Request] --> B[Express Server]
+    B --> C[Request Logging]
+    C --> D[Key Manager]
+    D --> E[OpenRouter API]
+    D --> F[Key Storage]
+    E --> G[Response Handler]
+    G --> H[Stream Processor]
+    G --> I[Error Handler]
+```
+
+#### Key Components
+
+1. **Express Server**
+   - Handles HTTP routing
+   - Manages request/response lifecycle
+   - Implements error middleware
+
+2. **Key Manager**
+   - Maintains key rotation logic
+   - Tracks key health and status
+   - Implements cooldown periods
+
+3. **Logging System**
+   - Request logging middleware
+   - Error tracking
+   - Key event monitoring
+
+4. **Stream Handler**
+   - Manages SSE connections
+   - Processes stream chunks
+   - Handles disconnections
+
+#### Design Principles
+- Separation of concerns
+- Automatic recovery
+- Comprehensive logging
+- Efficient key utilization
+- Graceful error handling
+
+## 📜 License
+MIT © Adrian Belmans - See [LICENSE](LICENSE) for details
