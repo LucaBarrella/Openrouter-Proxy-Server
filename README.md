@@ -2,7 +2,40 @@
 
 ![OpenRouter Proxy Server](image.png)
 
-> A smart proxy server for OpenRouter API with automatic key rotation and streaming support
+> A proxy server that makes OpenRouter's free models more reliable by handling API key rotation and rate limiting
+
+## Why Use This?
+
+When using OpenRouter's free models like DeepSeek Chat, you often encounter rate limits that can disrupt your workflow. This proxy server solves that by:
+
+1. **Managing Multiple API Keys**: Automatically rotates between your API keys when rate limits are hit
+2. **Keeping Services Running**: Tools like Aider and Roo-Code can keep working without interruption
+3. **Handling Failures Gracefully**: Smart retry logic and automatic recovery from errors
+4. **Being OpenAI Compatible**: Works as a drop-in replacement - just change the base URL
+
+## Quick Start
+
+1. **Get API Keys**: Get one or more free API keys from [OpenRouter](https://openrouter.ai)
+
+2. **Install & Run**:
+```bash
+git clone https://github.com/nexon33/openrouter-proxy
+cd openrouter-proxy
+npm install
+node add-key.js  # Add your API keys when prompted
+node server.js
+```
+
+3. **Use with Your Tools**:
+- For Aider: `aider --openai-api-base http://localhost:3000/v1`
+- For Roo-Code: Update settings with base URL `http://localhost:3000/v1`
+- For OpenAI SDK:
+```javascript
+const openai = new OpenAI({
+  baseURL: 'http://localhost:3000/v1',
+  apiKey: 'dummy-key'  // Real keys managed by proxy
+});
+```
 
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D16-brightgreen)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
