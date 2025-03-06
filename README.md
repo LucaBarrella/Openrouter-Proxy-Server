@@ -19,8 +19,8 @@ When using OpenRouter's free models like DeepSeek Chat, you often encounter rate
 
 2. **Install & Run**:
 ```bash
-git clone https://github.com/nexon33/openrouter-proxy
-cd openrouter-proxy
+git clone https://github.com/nexon33/Openrouter-Proxy-Server
+cd Openrouter-Proxy-Server
 npm install
 node add-key.js  # Add your API keys when prompted
 node server.js
@@ -56,8 +56,8 @@ const openai = new OpenAI({
 - OpenRouter API key(s)
 
 ```bash
-git clone https://github.com/yourrepo/openrouter-proxy.git
-cd openrouter-proxy
+git clone https://github.com/yourrepo/Openrouter-Proxy-Server.git
+cd Openrouter-Proxy-Server
 npm install
 ```
 
