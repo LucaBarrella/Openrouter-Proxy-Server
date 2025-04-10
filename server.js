@@ -10,6 +10,28 @@ dotenv.config();
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
+
+// Middleware di autenticazione per il proxy
+app.use((req, res, next) => {
+  const PROXY_ACCESS_KEY = process.env.PROXY_ACCESS_KEY;
+  
+  if (!PROXY_ACCESS_KEY) {
+    logError(new Error('PROXY_ACCESS_KEY non configurata'), { context: 'Auth middleware' });
+    return res.status(500).json({ error: 'Server misconfiguration' });
+  }
+
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Authorization header mancante' });
+  }
+
+  const [bearer, clientKey] = authHeader.split(' ');
+  if (bearer !== 'Bearer' || clientKey !== PROXY_ACCESS_KEY) {
+    return res.status(403).json({ error: 'Chiave di accesso non valida' });
+  }
+
+  next();
+});
 app.use(requestLoggingMiddleware);
 
 // Create logs directory
