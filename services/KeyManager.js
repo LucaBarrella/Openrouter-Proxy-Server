@@ -68,24 +68,35 @@ class KeyManager {
     }
   }
 
-  async markKeyError(error) {
+  async markKeyError(error, responseData) {
     if (!this.currentKey) return;
 
     try {
-      // Check if it's a rate limit error
-      if (error.response?.status === 429) {
-        const resetTime = error.response.headers['x-ratelimit-reset'];
-        this.currentKey.rateLimitResetAt = resetTime ? new Date(resetTime * 1000) : new Date(Date.now() + 60000);
+      const statusCode = error.response?.status;
+      const errorMessage = responseData?.error?.message || '';
+      const isStatusRateLimit = statusCode === 429;
+      const isMessageRateLimit = errorMessage.toLowerCase().includes('rate limit');
+      const isTriggerCondition = isStatusRateLimit || isMessageRateLimit;
+
+      if (isTriggerCondition) {
+        // Set reset time based on headers or default to 60 seconds
+        const resetTime = isStatusRateLimit ? error.response.headers['x-ratelimit-reset'] : null;
+        this.currentKey.rateLimitResetAt = resetTime
+          ? new Date(resetTime * 1000)
+          : new Date(Date.now() + 60000);
         
-        logKeyEvent('Rate Limit Hit', {
+        logKeyEvent('Rate Limit Condition Met (OR)', {
           keyId: this.currentKey._id,
-          resetTime: this.currentKey.rateLimitResetAt
+          resetTime: this.currentKey.rateLimitResetAt,
+          statusCode,
+          message: errorMessage,
+          trigger: isStatusRateLimit ? 'status_429' : 'message_match'
         });
 
         await this.currentKey.save();
         // Clear current key to force rotation
         this.currentKey = null;
-        return true; // Indicate it was a rate limit error
+        return true; // Indicate it was a rate limit condition
       }
 
       this.currentKey.failureCount += 1;
@@ -96,16 +107,17 @@ class KeyManager {
         logKeyEvent('Key Deactivated', {
           keyId: this.currentKey._id,
           reason: 'Too many failures',
-          failureCount: this.currentKey.failureCount
+          failureCount: this.currentKey.failureCount,
+          lastError: errorMessage
         });
         // Clear current key to force rotation
         this.currentKey = null;
       }
 
       await this.currentKey.save();
-      return false; // Indicate it was not a rate limit error
+      return false; // Indicate it was not a rate limit condition
     } catch (error) {
-      logError(error, { 
+      logError(error, {
         action: 'markKeyError',
         keyId: this.currentKey?._id
       });

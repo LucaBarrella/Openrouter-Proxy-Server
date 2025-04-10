@@ -127,7 +127,7 @@ app.post('/v1/chat/completions', async (req, res) => {
 
       return res.json(response.data);
     } catch (error) {
-      const isRateLimit = await keyManager.markKeyError(error);
+      const isRateLimit = await keyManager.markKeyError(error, error.response?.data);
 
       // Handle streaming errors by ending the response
       if (isStreaming && res.writableEnded === false) {
@@ -191,7 +191,7 @@ app.get('/v1/models', async (req, res) => {
       await keyManager.markKeySuccess();
       return res.json(response.data);
     } catch (error) {
-      const isRateLimit = await keyManager.markKeyError(error);
+      const isRateLimit = await keyManager.markKeyError(error, error.response?.data);
 
       if ((isRateLimit || error.response?.status >= 500) && retryCount < maxRetries - 1) {
         retryCount++;
