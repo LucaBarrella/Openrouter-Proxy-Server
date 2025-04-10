@@ -78,14 +78,26 @@ class KeyManager {
       const isMessageRateLimit = errorMessage.toLowerCase().includes('rate limit');
       const isTriggerCondition = isStatusRateLimit || isMessageRateLimit;
 
+      // Log dettagliato dell'errore ricevuto
+      logKeyEvent('Error Analysis', {
+        keyId: this.currentKey._id,
+        statusCode,
+        errorMessage,
+        isStatusRateLimit,
+        isMessageRateLimit,
+        headers: error.response?.headers
+      });
+
       if (isTriggerCondition) {
         // Set reset time based on headers or default to 60 seconds
         const resetTime = isStatusRateLimit ? error.response.headers['x-ratelimit-reset'] : null;
-        this.currentKey.rateLimitResetAt = resetTime
+        const resetDate = resetTime
           ? new Date(resetTime * 1000)
           : new Date(Date.now() + 60000);
         
-        logKeyEvent('Rate Limit Condition Met (OR)', {
+        this.currentKey.rateLimitResetAt = resetDate;
+        
+        logKeyEvent('Rate Limit Detected', {
           keyId: this.currentKey._id,
           resetTime: this.currentKey.rateLimitResetAt,
           statusCode,
